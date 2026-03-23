@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "ShopMyRoomTemp",
-    "slug": "ShopMyRoomTemp",
+    "name": "ShopMyRoom",
+    "slug": "shopmyroom",
+    "scheme": "shopmyroom",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,20 +12,27 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "platforms": [
+      "ios"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.shopmyroom",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "We need access to your photos to redesign your room.",
+        "NSCameraUsageDescription": "Take a photo of your room to get started.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "plugins": [
+      "expo-router",
+      "expo-image-picker"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4e16f312-fb40-4b46-a848-7b616f16ec2d"
+      }
     }
   }
 }

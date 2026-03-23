@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/aidaw/Desktop/Code/**)",
+      "Bash(npx create-expo-app@latest ShopMyRoom --template blank-typescript)",
+      "Bash(npx create-expo-app@latest ShopMyRoomTemp --template blank-typescript)",
+      "Bash(cp -r /c/Users/aidaw/Desktop/Code/ShopMyRoomTemp/. /c/Users/aidaw/Desktop/Code/ShopMyRoom/)",
+      "Bash(rm -rf /c/Users/aidaw/Desktop/Code/ShopMyRoomTemp)",
+      "Bash(npx expo:*)",
+      "Bash(npm install:*)",
+      "Bash(find C:UsersaidawDesktopCode -type f \\\\\\(-name *.js -o -name *.ts -o -name *.jsx -o -name *.tsx -o -name *.json -o -name *.py -o -name *.md -o -name *.txt -o -name *.env* \\\\\\) ! -path *ShopMyRoom*)",
+      "Bash(cd:*)"
+    ]
+  }
+}
