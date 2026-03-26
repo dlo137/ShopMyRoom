@@ -8,13 +8,16 @@ import {
   ActivityIndicator,
   StyleSheet,
   Dimensions,
+  SafeAreaView,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useHistory, GenerationWithProducts } from '../../hooks/useHistory';
 import { ProductResult } from '../../types/product';
+import { colors, radius, shadow, spacing } from '../../lib/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
+const CARD_WIDTH = (SCREEN_WIDTH - spacing.lg * 2 - 12) / 2;
 
 const PLACEHOLDER_GENERATIONS: GenerationWithProducts[] = [
   {
@@ -88,161 +91,177 @@ export default function HistoryScreen() {
 
   function formatDate(dateStr: string) {
     const d = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
+    const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   if (loading && !isPlaceholder) {
     return (
-      <View style={s.centered}>
-        <ActivityIndicator size="large" color="#1a1a1a" />
-        <Text style={s.loadingText}>Loading your designs...</Text>
-      </View>
+      <SafeAreaView style={s.safe}>
+        <View style={s.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={s.loadingText}>Loading your designs...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (error && !isPlaceholder) {
     return (
-      <View style={s.centered}>
-        <Text style={s.errorIcon}>⚠️</Text>
-        <Text style={s.errorText}>{error}</Text>
-        <TouchableOpacity style={s.retryButton} onPress={refetch}>
-          <Text style={s.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={s.safe}>
+        <View style={s.centered}>
+          <View style={s.emptyIconWrap}>
+            <Ionicons name="alert-circle-outline" size={32} color={colors.error} />
+          </View>
+          <Text style={s.emptyTitle}>Something went wrong</Text>
+          <Text style={s.emptySubtitle}>{error}</Text>
+          <TouchableOpacity style={s.ctaButton} onPress={refetch}>
+            <Text style={s.ctaButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (generations.length === 0) {
     return (
-      <View style={s.centered}>
-        <Text style={s.emptyIcon}>🛋️</Text>
-        <Text style={s.emptyTitle}>No designs yet</Text>
-        <Text style={s.emptySubtitle}>
-          Take a photo of your room and pick a style to generate your first redesign.
-        </Text>
-        <TouchableOpacity style={s.ctaButton} onPress={() => router.push('/(tabs)/')}>
-          <Text style={s.ctaButtonText}>Design a Room</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={s.safe}>
+        <View style={s.centered}>
+          <View style={s.emptyIconWrap}>
+            <Ionicons name="color-wand-outline" size={32} color={colors.textMuted} />
+          </View>
+          <Text style={s.emptyTitle}>No designs yet</Text>
+          <Text style={s.emptySubtitle}>
+            Take a photo of your room and pick a style to generate your first AI redesign.
+          </Text>
+          <TouchableOpacity style={s.ctaButton} onPress={() => router.push('/(tabs)/')}>
+            <Ionicons name="sparkles" size={15} color="#fff" />
+            <Text style={s.ctaButtonText}>Design a Room</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <FlatList
-      data={generations}
-      keyExtractor={(item) => item.id}
-      numColumns={2}
-      contentContainerStyle={s.grid}
-      columnWrapperStyle={s.row}
-      showsVerticalScrollIndicator={false}
-      ListHeaderComponent={
-        <View style={s.header}>
-          <Text style={s.headerTitle}>My Designs</Text>
-          <Text style={s.headerCount}>{generations.length} room{generations.length !== 1 ? 's' : ''}</Text>
-        </View>
-      }
-      renderItem={({ item }) => {
-        const imageUri = item.generated_image_url ?? item.original_image_url;
-        const isComplete = item.status === 'complete';
-
-        return (
-          <TouchableOpacity
-            style={s.card}
-            onPress={() => handleCardPress(item)}
-            activeOpacity={0.85}
-          >
-            <View style={s.imageContainer}>
-              {imageUri ? (
-                <Image source={{ uri: imageUri }} style={s.image} resizeMode="cover" />
-              ) : (
-                <View style={s.imagePlaceholder}>
-                  <Text style={s.imagePlaceholderIcon}>🏠</Text>
-                </View>
-              )}
-              <View style={[s.statusBadge, isComplete ? s.statusComplete : s.statusProcessing]}>
-                <Text style={s.statusText}>{isComplete ? 'Done' : 'Processing'}</Text>
-              </View>
+    <SafeAreaView style={s.safe}>
+      <FlatList
+        data={generations}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        contentContainerStyle={s.grid}
+        columnWrapperStyle={s.row}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <View style={s.header}>
+            <View>
+              <Text style={s.headerTitle}>My Designs</Text>
+              <Text style={s.headerSubtitle}>
+                {generations.length} room{generations.length !== 1 ? 's' : ''}
+              </Text>
             </View>
+            <TouchableOpacity
+              style={s.newButton}
+              onPress={() => router.push('/(tabs)/')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={16} color="#fff" />
+              <Text style={s.newButtonText}>New</Text>
+            </TouchableOpacity>
+          </View>
+        }
+        renderItem={({ item }) => {
+          const imageUri = item.generated_image_url ?? item.original_image_url;
+          const isComplete = item.status === 'complete';
 
-            <View style={s.cardBody}>
-              <Text style={s.styleName}>{item.style}</Text>
-              <View style={s.cardMeta}>
-                <Text style={s.dateText}>{formatDate(item.created_at)}</Text>
-                {item.products.length > 0 && (
-                  <Text style={s.productCount}>{item.products.length} items</Text>
+          return (
+            <TouchableOpacity
+              style={s.card}
+              onPress={() => handleCardPress(item)}
+              activeOpacity={0.85}
+            >
+              <View style={s.imageWrap}>
+                {imageUri ? (
+                  <Image source={{ uri: imageUri }} style={s.image} resizeMode="cover" />
+                ) : (
+                  <View style={s.imagePlaceholder}>
+                    <Ionicons name="image-outline" size={28} color={colors.textMuted} />
+                  </View>
                 )}
+                <View style={[s.badge, isComplete ? s.badgeDone : s.badgePending]}>
+                  <Text style={s.badgeText}>{isComplete ? 'Done' : 'Processing'}</Text>
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        );
-      }}
-    />
+
+              <View style={s.cardBody}>
+                <Text style={s.styleName}>{item.style}</Text>
+                <View style={s.cardMeta}>
+                  <Text style={s.dateText}>{formatDate(item.created_at)}</Text>
+                  {item.products.length > 0 && (
+                    <View style={s.itemsBadge}>
+                      <Text style={s.itemsText}>{item.products.length} items</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
+    </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  // STATES
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
     gap: 12,
-    backgroundColor: '#f2f2f7',
   },
   loadingText: {
     fontSize: 14,
-    color: '#888',
-    marginTop: 8,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
-  errorIcon: {
-    fontSize: 36,
-  },
-  errorText: {
-    fontSize: 15,
-    color: '#c0392b',
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#1a1a1a',
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyIcon: {
-    fontSize: 52,
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 4,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: colors.text,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#888',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
   ctaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 8,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#1a1a1a',
+    paddingHorizontal: 24,
+    paddingVertical: 13,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+    ...shadow.md,
   },
   ctaButtonText: {
     color: '#fff',
@@ -250,12 +269,11 @@ const s = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // GRID
+  // Grid
   grid: {
-    padding: 16,
-    paddingTop: 64,
+    padding: spacing.lg,
+    paddingTop: spacing.xxxl,
     paddingBottom: 40,
-    backgroundColor: '#f2f2f7',
   },
   row: {
     gap: 12,
@@ -263,33 +281,48 @@ const s = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: -0.5,
   },
-  headerCount: {
-    fontSize: 14,
-    color: '#888',
+  headerSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  newButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    ...shadow.sm,
+  },
+  newButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
   },
 
-  // CARD
+  // Card
   card: {
     width: CARD_WIDTH,
-    backgroundColor: '#fff',
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.sm,
   },
-  imageContainer: {
+  imageWrap: {
     position: 'relative',
   },
   image: {
@@ -299,53 +332,57 @@ const s = StyleSheet.create({
   imagePlaceholder: {
     width: '100%',
     height: CARD_WIDTH,
-    backgroundColor: '#eee',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  imagePlaceholderIcon: {
-    fontSize: 32,
-  },
-  statusBadge: {
+  badge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 3,
+    borderRadius: radius.full,
   },
-  statusComplete: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
+  badgeDone: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  statusProcessing: {
-    backgroundColor: 'rgba(234,179,8,0.85)',
+  badgePending: {
+    backgroundColor: 'rgba(217,119,6,0.85)',
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: '#fff',
+    letterSpacing: 0.2,
   },
   cardBody: {
     padding: 10,
-    gap: 4,
+    gap: 6,
   },
   styleName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: colors.text,
   },
   cardMeta: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   dateText: {
-    fontSize: 12,
-    color: '#888',
+    fontSize: 11,
+    color: colors.textMuted,
   },
-  productCount: {
-    fontSize: 12,
-    color: '#555',
-    fontWeight: '500',
+  itemsBadge: {
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  itemsText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
 });
