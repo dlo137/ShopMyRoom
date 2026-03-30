@@ -77,7 +77,12 @@ export async function generateRoom(imageUrl: string, style: string, room: string
   }
 
   // Step 3: Extract base64 image from response
-  const data = JSON.parse(resText);
+  let data: any;
+  try {
+    data = JSON.parse(resText);
+  } catch {
+    throw new Error(`Gemini returned invalid JSON (status ${res.status}). Response: ${resText.slice(0, 200)}`);
+  }
   const parts = data.candidates?.[0]?.content?.parts ?? [];
 
   const imagePart = parts.find(

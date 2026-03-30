@@ -82,7 +82,7 @@ export default function ProfileScreen() {
     try {
       const customerInfo = await restorePurchases();
 
-      if (customerInfo.entitlements.active['pro']) {
+      if (customerInfo.entitlements.active['ShopMyRoom Pro']) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           await supabase.from('profiles').update({ is_pro_version: true }).eq('id', user.id);

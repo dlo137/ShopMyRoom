@@ -13,8 +13,42 @@ import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
-// Module-level guard — prevents double-configure if the component ever re-mounts
+// Module-level state for RevenueCat initialisation
 let _rcConfigured = false;
+const RC_API_KEY = 'appl_DTNJDhMIgHzLtvBpteHLQhhKCGx';
+
+// Single-slot queue for auth calls that arrive before configure() completes.
+// Only the latest call matters — earlier ones are superseded by the final auth state.
+type PendingRCCall = { type: 'login'; userId: string } | { type: 'logout' };
+let _pendingRCCall: PendingRCCall | null = null;
+
+async function flushPendingRCCall() {
+  if (!_pendingRCCall) return;
+  const call = _pendingRCCall;
+  _pendingRCCall = null;
+  try {
+    if (call.type === 'login') {
+      await Purchases.logIn(call.userId);
+    } else {
+      await Purchases.logOut();
+    }
+  } catch (e: any) {
+    console.error('[RC] flush pending call failed:', e?.message);
+  }
+}
+
+function scheduleRCCall(call: PendingRCCall) {
+  if (_rcConfigured) {
+    // Configure already done — execute immediately
+    (call.type === 'login'
+      ? Purchases.logIn(call.userId)
+      : Purchases.logOut()
+    ).catch((e: any) => console.error('[RC] call failed:', e?.message));
+  } else {
+    // Store only the latest — previous pending call is superseded
+    _pendingRCCall = call;
+  }
+}
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -64,32 +98,50 @@ export default function RootLayout() {
   const segments = useSegments();
 
   // --- RevenueCat initialisation ---
-  // Must complete before logIn is called.
-  // Uses a module-level flag so it is safe across strict-mode double-invocations.
+  // Deferred by 1.5 s to ensure UIKit, the RN bridge, and the Hermes runtime are
+  // all fully settled before touching the native RevenueCat SDK.
+  // Calling configure() too early causes an NSException inside a TurboModule void
+  // method invocation, which triggers a Hermes GC race and a SIGSEGV crash.
   useEffect(() => {
     if (_rcConfigured) return;
-    _rcConfigured = true;
 
-    try {
-      Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
-      Purchases.configure({ apiKey: 'appl_DTNJDhMIgHzLtvBpteHLQhhKCGx' });
-    } catch (e: any) {
-      const msg = `RevenueCat configure failed: ${e?.message ?? String(e)}`;
-      console.error('[RC]', msg);
-      setRcError(msg);
-      return; // do not attempt logIn if configure failed
-    }
+    const timer = setTimeout(async () => {
+      if (_rcConfigured) return; // double-check after the delay
 
-    // Identify the current user after configure is complete
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        Purchases.logIn(session.user.id).catch((e: any) => {
-          const msg = `RevenueCat logIn failed: ${e?.message ?? String(e)}`;
-          console.error('[RC]', msg);
-          setRcError(msg);
-        });
+      try {
+        // Only enable verbose logging in dev — setLogLevel(VERBOSE) itself can
+        // throw if called at the wrong moment on the native side.
+        if (__DEV__) {
+          Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+        }
+        Purchases.configure({ apiKey: RC_API_KEY });
+      } catch (e: any) {
+        const msg = `RevenueCat configure failed: ${e?.message ?? String(e)}`;
+        console.error('[RC]', msg);
+        setRcError(msg);
+        return;
       }
-    });
+
+      // Mark as configured so scheduleRCCall executes immediately from now on
+      _rcConfigured = true;
+
+      // Flush any auth call that arrived during the 1500ms window.
+      // If nothing is queued, fall back to the current session.
+      if (_pendingRCCall) {
+        await flushPendingRCCall();
+      } else {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            await Purchases.logIn(session.user.id);
+          }
+        } catch (e: any) {
+          console.error('[RC] initial logIn failed:', e?.message);
+        }
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, []);
 
   // --- Session / auth state ---
@@ -102,18 +154,10 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
 
-      try {
-        if (event === 'SIGNED_IN' && session?.user) {
-          Purchases.logIn(session.user.id).catch((e: any) => {
-            console.error('[RC] logIn on auth change failed:', e?.message);
-          });
-        } else if (event === 'SIGNED_OUT') {
-          Purchases.logOut().catch((e: any) => {
-            console.error('[RC] logOut failed:', e?.message);
-          });
-        }
-      } catch (e: any) {
-        console.error('[RC] auth change handler error:', e?.message);
+      if (event === 'SIGNED_IN' && session?.user) {
+        scheduleRCCall({ type: 'login', userId: session.user.id });
+      } else if (event === 'SIGNED_OUT') {
+        scheduleRCCall({ type: 'logout' });
       }
     });
 

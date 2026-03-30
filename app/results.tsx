@@ -30,7 +30,12 @@ export default function ResultsScreen() {
     selectedStyle: string;
   }>();
 
-  const products: ProductResult[] = productsJson ? JSON.parse(productsJson) : [];
+  let products: ProductResult[] = [];
+  try {
+    products = productsJson ? JSON.parse(productsJson) : [];
+  } catch {
+    // malformed params — render without products rather than crashing
+  }
   const [showBefore, setShowBefore] = useState(false);
   const [saving, setSaving] = useState(false);
 
