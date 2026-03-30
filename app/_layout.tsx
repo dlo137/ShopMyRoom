@@ -8,9 +8,17 @@ import {
   ScrollView,
 } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+
+console.log('[LAUNCH] app entry reached');
+
+// react-native-purchases is intentionally NOT imported at the top level.
+// When the RNPurchases TurboModule is accessed during module evaluation it calls
+// void native methods that throw NSExceptions before the RN bridge is stable,
+// triggering a Hermes GC race (SIGSEGV at ~280ms). We hold a reference here
+// and set it only after the dynamic import inside the 1500ms timer.
+let _Purchases: typeof import('react-native-purchases').default | null = null;
 
 // Module-level state for RevenueCat initialisation
 let _rcConfigured = false;
@@ -22,14 +30,14 @@ type PendingRCCall = { type: 'login'; userId: string } | { type: 'logout' };
 let _pendingRCCall: PendingRCCall | null = null;
 
 async function flushPendingRCCall() {
-  if (!_pendingRCCall) return;
+  if (!_pendingRCCall || !_Purchases) return;
   const call = _pendingRCCall;
   _pendingRCCall = null;
   try {
     if (call.type === 'login') {
-      await Purchases.logIn(call.userId);
+      await _Purchases.logIn(call.userId);
     } else {
-      await Purchases.logOut();
+      await _Purchases.logOut();
     }
   } catch (e: any) {
     console.error('[RC] flush pending call failed:', e?.message);
@@ -37,11 +45,11 @@ async function flushPendingRCCall() {
 }
 
 function scheduleRCCall(call: PendingRCCall) {
-  if (_rcConfigured) {
+  if (_rcConfigured && _Purchases) {
     // Configure already done — execute immediately
     (call.type === 'login'
-      ? Purchases.logIn(call.userId)
-      : Purchases.logOut()
+      ? _Purchases.logIn(call.userId)
+      : _Purchases.logOut()
     ).catch((e: any) => console.error('[RC] call failed:', e?.message));
   } else {
     // Store only the latest — previous pending call is superseded
@@ -89,6 +97,7 @@ class ErrorBoundary extends React.Component<
 }
 
 export default function RootLayout() {
+  console.log('[LAUNCH] RootLayout render reached');
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [rcError, setRcError] = useState<string | null>(null);
@@ -102,18 +111,29 @@ export default function RootLayout() {
   // Calling configure() too early causes an NSException inside a TurboModule void
   // method invocation, which triggers a Hermes GC race and a SIGSEGV crash.
   useEffect(() => {
+    console.log('[LAUNCH] first useEffect ran');
     if (_rcConfigured) return;
 
     const timer = setTimeout(async () => {
       if (_rcConfigured) return; // double-check after the delay
 
       try {
+        // Dynamic import — the RNPurchases TurboModule and its NativeEventEmitter
+        // are not touched until here, well after the native bridge is stable.
+        console.log('[LAUNCH] before RevenueCat dynamic import');
+        const rcModule = await import('react-native-purchases');
+        console.log('[LAUNCH] after RevenueCat dynamic import');
+        _Purchases = rcModule.default;
+        const LOG_LEVEL = rcModule.LOG_LEVEL;
+
         // Only enable verbose logging in dev — setLogLevel(VERBOSE) itself can
         // throw if called at the wrong moment on the native side.
         if (__DEV__) {
-          Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+          _Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
         }
-        Purchases.configure({ apiKey: RC_API_KEY });
+        console.log('[LAUNCH] before configure');
+        _Purchases.configure({ apiKey: RC_API_KEY });
+        console.log('[LAUNCH] after configure');
       } catch (e: any) {
         const msg = `RevenueCat configure failed: ${e?.message ?? String(e)}`;
         console.error('[RC]', msg);
@@ -131,8 +151,8 @@ export default function RootLayout() {
       } else {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            await Purchases.logIn(session.user.id);
+          if (session?.user && _Purchases) {
+            await _Purchases.logIn(session.user.id);
           }
         } catch (e: any) {
           console.error('[RC] initial logIn failed:', e?.message);
