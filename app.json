@@ -28,8 +28,7 @@
     "plugins": [
       "expo-router",
       "expo-image-picker",
-      "expo-apple-authentication",
-      "react-native-purchases"
+      "expo-apple-authentication"
     ],
     "extra": {
       "router": {},

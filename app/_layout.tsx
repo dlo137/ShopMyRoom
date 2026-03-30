@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Linking,
   ScrollView,
 } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
@@ -164,16 +163,14 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- Deep link handler for Supabase OAuth callback ---
-  useEffect(() => {
-    const sub = Linking.addEventListener('url', async ({ url }) => {
-      if (url.includes('supabase.co/auth/v1/callback')) {
-        await supabase.auth.getSession();
-        router.replace('/(tabs)/');
-      }
-    });
-    return () => sub.remove();
-  }, []);
+  // Deep link / OAuth URL callback handler removed.
+  // The app uses Apple Sign In (signInWithIdToken) and email/password — neither
+  // uses a browser-redirect OAuth flow, so this listener is never triggered.
+  // More importantly: Linking.addEventListener calls addListener() on the Linking
+  // TurboModule (a void native method) immediately on mount. On iOS 18.6.1 +
+  // RN 0.83.2 this was causing RCTLinkingManager to throw an NSException within
+  // ~740 ms of launch, triggering a Hermes GC crash before our 1500 ms RC delay
+  // could even fire.
 
   // --- Redirect unauthenticated users out of tabs ---
   useEffect(() => {
