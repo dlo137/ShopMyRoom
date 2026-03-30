@@ -36,15 +36,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="results"
-        options={{
-          title: 'Results',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="image-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="history"
         options={{
           title: 'History',

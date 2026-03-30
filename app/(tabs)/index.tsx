@@ -5,14 +5,15 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGenerate } from '../../hooks/useGenerate';
 import { STYLES } from '../../lib/nanoBanana';
 import { colors, radius, shadow, spacing } from '../../lib/theme';
 import StyleSelector from '../../components/StyleSelector';
+import RoomSelector from '../../components/RoomSelector';
 import RoomUploader, { LoadingStatus } from '../../components/RoomUploader';
 
 const ACTIVE_STATUSES = ['uploading', 'generating', 'extracting', 'searching', 'saving'] as const;
@@ -24,18 +25,22 @@ function isActive(status: string): status is ActiveStatus {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ originalImageUri?: string; selectedStyle?: string; selectedRoom?: string }>();
   const { status, generatedImageUrl, products, error, startGeneration } = useGenerate();
-  const [selectedStyle, setSelectedStyle] = useState('Modern');
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState(params.selectedStyle ?? 'Modern');
+  const [selectedRoom, setSelectedRoom] = useState(params.selectedRoom ?? 'Living Room');
+  const [imageUri, setImageUri] = useState<string | null>(params.originalImageUri ?? null);
 
   useEffect(() => {
     if (status === 'done') {
       router.push({
-        pathname: '/(tabs)/results',
+        pathname: '/results',
         params: {
           generatedImageUrl: generatedImageUrl ?? '',
           originalImageUri: imageUri ?? '',
           productsJson: JSON.stringify(products),
+          selectedStyle,
+          selectedRoom,
         },
       });
     }
@@ -71,6 +76,15 @@ export default function HomeScreen() {
           loadingStatus={isGenerating ? (status as LoadingStatus) : undefined}
         />
 
+        {/* Room picker */}
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>Choose a Room</Text>
+          <RoomSelector
+            selectedRoom={selectedRoom}
+            onRoomSelect={setSelectedRoom}
+          />
+        </View>
+
         {/* Style picker */}
         <View style={s.section}>
           <Text style={s.sectionLabel}>Choose a Style</Text>
@@ -97,7 +111,7 @@ export default function HomeScreen() {
         )}
         <TouchableOpacity
           style={[s.generateButton, !canGenerate && s.generateButtonDisabled]}
-          onPress={() => imageUri && startGeneration(imageUri, selectedStyle)}
+          onPress={() => imageUri && startGeneration(imageUri, selectedStyle, selectedRoom)}
           disabled={!canGenerate}
           activeOpacity={0.85}
         >

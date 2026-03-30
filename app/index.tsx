@@ -6,11 +6,11 @@ import {
   Animated,
   TouchableOpacity,
   ActivityIndicator,
-  SafeAreaView,
   StyleSheet,
   TextStyle,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import MaskedView from '@react-native-masked-view/masked-view';
@@ -113,34 +113,7 @@ export default function OnboardingScreen() {
   }
 
   function handleGetStarted() {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: -1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      if (step === 3) {
-        router.push('/subscription');
-        return;
-      }
-
-      setStep((prev) => prev + 1);
-
-      requestAnimationFrame(() => {
-        slideAnim.setValue(0);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      });
-    });
+    router.push('/subscription');
   }
 
   const translateX = slideAnim.interpolate({
@@ -244,18 +217,19 @@ export default function OnboardingScreen() {
               />
             </View>
 
-            {/* Pulsing glow */}
-            <Animated.View style={[s.glow, { opacity: glowAnim }]} />
 
             {/* Hero image */}
-            <Image
-              source={require('../assets/icon.png')}
-              style={s.heroImage}
-              resizeMode="contain"
-            />
+            <View style={s.heroImageWrapper}>
+              <Image
+                source={require('../assets/icon.png')}
+                style={s.heroImage}
+                resizeMode="cover"
+              />
+            </View>
 
             {/* Title */}
-            <Text style={s.screenTitle}>Your App Name{'\n'}Tagline Here</Text>
+            <Text style={s.screenTitle}>Your Room,{'\n'}Redesigned Instantly</Text>
+
           </>
         )}
       </Animated.View>
@@ -267,7 +241,7 @@ export default function OnboardingScreen() {
         activeOpacity={0.85}
       >
         <Text style={s.getStartedButtonText}>
-          {step === 1 ? 'Get Started' : step === 2 ? 'Continue' : 'Start Creating'}
+          Get Started
         </Text>
       </TouchableOpacity>
 
@@ -342,17 +316,22 @@ const s = StyleSheet.create({
   },
 
   // Hero
+  heroImageWrapper: {
+    width: 300,
+    height: 300,
+    borderRadius: 32,
+    overflow: 'hidden',
+    alignSelf: 'center',
+  },
   heroImage: {
     width: '100%',
-    height: 600,
-    marginTop: -30,
-    marginBottom: -30,
-    zIndex: 10,
+    height: '100%',
   },
   screenTitle: {
     fontSize: 32,
     fontWeight: 'bold',
     color: TEXT,
+    marginTop: 20,
     marginBottom: 6,
     textAlign: 'center',
   },

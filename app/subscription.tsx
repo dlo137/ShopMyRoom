@@ -14,36 +14,10 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { IAPService } from '../lib/IAPService';
+import Purchases, { PurchasesPackage, PACKAGE_TYPE } from 'react-native-purchases';
+import { purchasePackage, restorePurchases } from '../lib/purchases';
 import { supabase } from '../lib/supabase';
 
-// ─── Product IDs ────────────────────────────────────────────────────────────
-
-const PRODUCT_IDS = Platform.select<{
-  yearly: string;
-  monthly: string;
-  weekly: string;
-  discountedWeekly: string;
-}>({
-  ios: {
-    yearly:           '[YOUR_YEARLY_ID]',
-    monthly:          '[YOUR_MONTHLY_ID]',
-    weekly:           '[YOUR_WEEKLY_ID]',
-    discountedWeekly: '[YOUR_DISCOUNTED_WEEKLY_ID]',
-  },
-  android: {
-    yearly:           '[YOUR_ANDROID_PRODUCT_ID]',
-    monthly:          '[YOUR_ANDROID_PRODUCT_ID]',
-    weekly:           '[YOUR_ANDROID_PRODUCT_ID]',
-    discountedWeekly: '[YOUR_ANDROID_PRODUCT_ID]',
-  },
-  default: {
-    yearly:           '[YOUR_YEARLY_ID]',
-    monthly:          '[YOUR_MONTHLY_ID]',
-    weekly:           '[YOUR_WEEKLY_ID]',
-    discountedWeekly: '[YOUR_DISCOUNTED_WEEKLY_ID]',
-  },
-})!;
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -60,34 +34,19 @@ export default function SubscriptionScreen() {
   // Modal
   const [showDiscountModal, setShowDiscountModal] = useState(false);
 
-  // IAP
-  const [products, setProducts] = useState<any[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [iapReady, setIapReady] = useState(false);
+  // Purchase
   const [currentPurchaseAttempt, setCurrentPurchaseAttempt] = useState<
     'monthly' | 'yearly' | 'weekly' | null
   >(null);
-  const [isIAPAvailable, setIsIAPAvailable] = useState(false);
-  const [androidOfferTokens, setAndroidOfferTokens] = useState<Record<string, string>>({});
 
-  // Debug
+  // Debug panel
   const [showDebug, setShowDebug] = useState(false);
-  const [productDebugLogs, setProductDebugLogs] = useState<string[]>([]);
-  const [purchaseLogs, setPurchaseLogs] = useState<string[]>([]);
-  const [listenerStatus, setListenerStatus] = useState('Not triggered yet');
-  const [productFetchStatus, setProductFetchStatus] = useState<{
-    attempted: boolean;
-    success: boolean;
-    error: string | null;
-    foundProducts: string[];
-    missingProducts: string[];
-  }>({
-    attempted: false,
-    success: false,
-    error: null,
-    foundProducts: [],
-    missingProducts: [],
-  });
+  const [debugInfo, setDebugInfo] = useState<{
+    offerings: string;
+    packages: string[];
+    entitlements: string;
+    activeSubscriptions: string[];
+  } | null>(null);
 
   // Refs
   const isRestoringRef = useRef(false);
@@ -117,95 +76,44 @@ export default function SubscriptionScreen() {
     markPaywallSeen();
   }, []);
 
-  // ── 2. IAP debug callback ────────────────────────────────────────────────
+  // ── 2. RevenueCat debug ───────────────────────────────────────────────────
 
   useEffect(() => {
-    IAPService.clearPurchaseLogs();
+    async function debugRC() {
+      const info: typeof debugInfo = {
+        offerings: 'none',
+        packages: [],
+        entitlements: '{}',
+        activeSubscriptions: [],
+      };
 
-    IAPService.setDebugCallback((logs, status) => {
-      setPurchaseLogs([...logs]);
-      setListenerStatus(status);
-    });
-
-    return () => {
-      IAPService.setDebugCallback(null);
-    };
-  }, []);
-
-  // ── 3. Product fetch ─────────────────────────────────────────────────────
-
-  useEffect(() => {
-    async function fetchProducts() {
-      setLoadingProducts(true);
-      setProductFetchStatus((prev) => ({ ...prev, attempted: true }));
-
-      const available = await IAPService.isAvailable();
-
-      if (!available) {
-        if (__DEV__) {
-          setIapReady(true);
-          setIsIAPAvailable(false);
-          setProductFetchStatus({
-            attempted: true,
-            success: false,
-            error: 'IAP not available (DEV mode / simulator)',
-            foundProducts: [],
-            missingProducts: Object.values(PRODUCT_IDS),
-          });
-        }
-        setLoadingProducts(false);
-        return;
+      try {
+        const offerings = await Purchases.getOfferings();
+        console.log('[RC] offerings current:', offerings.current);
+        const pkgs = offerings.current?.availablePackages.map(p => p.packageType + ' - ' + p.product.identifier) ?? [];
+        console.log('[RC] available packages:', pkgs);
+        info.offerings = offerings.current?.identifier ?? 'null';
+        info.packages = pkgs;
+      } catch (e) {
+        console.log('[RC] getOfferings error:', e);
+        info.offerings = 'ERROR: ' + String(e);
       }
 
       try {
-        const expectedIds = Object.values(PRODUCT_IDS);
-        const fetched: any[] = await IAPService.getProducts(expectedIds);
-
-        setProducts(fetched);
-        setIapReady(true);
-        setIsIAPAvailable(true);
-
-        // Android: extract offer tokens from subscriptionOfferDetails
-        if (Platform.OS === 'android') {
-          const tokens: Record<string, string> = {};
-          for (const product of fetched) {
-            const offers: any[] = product.subscriptionOfferDetails ?? [];
-            for (const offer of offers) {
-              const basePlanId: string = offer.basePlanId ?? '';
-              const offerToken: string = offer.offerToken ?? '';
-              if (basePlanId && offerToken) {
-                tokens[basePlanId] = offerToken;
-              }
-            }
-          }
-          setAndroidOfferTokens(tokens);
-        }
-
-        const fetchedIds = fetched.map((p) => p.productId ?? p.id ?? '');
-        const foundProducts = expectedIds.filter((id) => fetchedIds.includes(id));
-        const missingProducts = expectedIds.filter((id) => !fetchedIds.includes(id));
-
-        setProductFetchStatus({
-          attempted: true,
-          success: true,
-          error: null,
-          foundProducts,
-          missingProducts,
-        });
-      } catch (err: any) {
-        setIapReady(false);
-        setIsIAPAvailable(false);
-        setProductFetchStatus((prev) => ({
-          ...prev,
-          success: false,
-          error: err?.message ?? 'Unknown error fetching products',
-        }));
-      } finally {
-        setLoadingProducts(false);
+        const customerInfo = await Purchases.getCustomerInfo();
+        console.log('[RC] customerInfo entitlements active:', customerInfo.entitlements.active);
+        console.log('[RC] customerInfo activeSubscriptions:', customerInfo.activeSubscriptions);
+        info.entitlements = JSON.stringify(Object.keys(customerInfo.entitlements.active));
+        info.activeSubscriptions = customerInfo.activeSubscriptions;
+      } catch (e) {
+        console.log('[RC] getCustomerInfo error:', e);
+        info.entitlements = 'ERROR: ' + String(e);
       }
+
+      setDebugInfo(info);
     }
 
-    fetchProducts();
+    debugRC();
   }, []);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
@@ -226,8 +134,19 @@ export default function SubscriptionScreen() {
     setCurrentPurchaseAttempt(plan === 'discountedWeekly' ? 'weekly' : plan);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user session');
+      let { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously();
+        if (anonError || !anonData.session) {
+          Alert.alert('Error', 'Could not create your account. Please try again.');
+          setCurrentPurchaseAttempt(null);
+          return;
+        }
+        session = anonData.session;
+      }
+
+      const user = session.user;
 
       await supabase
         .from('profiles')
@@ -266,53 +185,72 @@ export default function SubscriptionScreen() {
   }
 
   async function handleContinue() {
-    if (__DEV__ && products.length === 0) {
+    if (__DEV__) {
       await simulatePurchase(selectedPlan);
       return;
     }
 
-    if (!isIAPAvailable) {
-      Alert.alert(
-        'Purchases Unavailable',
-        'In-app purchases are not available on this device.'
-      );
-      return;
-    }
-
-    const productId = PRODUCT_IDS[selectedPlan];
-    const product = products.find(
-      (p) => (p.productId ?? p.id) === productId
-    );
-
-    if (!product) {
-      Alert.alert(
-        'Product Not Found',
-        'Unable to load this subscription. Please try again later.'
-      );
-      return;
-    }
-
-    const offerToken =
-      Platform.OS === 'android' ? androidOfferTokens[selectedPlan] : undefined;
-
     setCurrentPurchaseAttempt(selectedPlan);
 
     try {
-      await IAPService.purchaseSubscription(productId, offerToken);
+      const offerings = await Purchases.getOfferings();
+      const current = offerings.current;
 
-      // Validate receipt server-side
-      try {
-        await supabase.functions.invoke('validate-receipt', {
-          body: { productId, source: 'direct' },
-        });
-      } catch {
-        // validation is best-effort
+      if (!current) {
+        Alert.alert('Unavailable', 'No offerings found. Please try again later.');
+        setCurrentPurchaseAttempt(null);
+        return;
+      }
+
+      const packageTypeMap = {
+        yearly: PACKAGE_TYPE.ANNUAL,
+        monthly: PACKAGE_TYPE.MONTHLY,
+        weekly: PACKAGE_TYPE.WEEKLY,
+      };
+
+      const pkg = current.availablePackages.find(
+        (p) => p.packageType === packageTypeMap[selectedPlan]
+      );
+
+      if (!pkg) {
+        Alert.alert('Product Not Found', 'Unable to load this subscription. Please try again later.');
+        setCurrentPurchaseAttempt(null);
+        return;
+      }
+
+      const customerInfo = await purchasePackage(pkg);
+
+      if (customerInfo.entitlements.active['ShopMyRoom Pro']) {
+        const creditsMap: Record<string, number> = { yearly: 90, monthly: 75, weekly: 10 };
+        const credits_max = creditsMap[selectedPlan] ?? 10;
+        const now = new Date().toISOString();
+
+        let { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          const { data: anonData } = await supabase.auth.signInAnonymously();
+          user = anonData.user;
+        }
+        if (user) {
+          await supabase.from('profiles').upsert({
+            id: user.id,
+            email: user.email,
+            updated_at: now,
+          });
+          await supabase.from('profiles').update({
+            is_pro_version: true,
+            subscription_plan: selectedPlan,
+            entitlement: 'pro',
+            credits_current: credits_max,
+            credits_max,
+            purchase_time: now,
+          }).eq('id', user.id);
+        }
       }
 
       router.replace('/(tabs)/' as any);
     } catch (err: any) {
       const msg: string = err?.message ?? '';
-      if (msg.toLowerCase().includes('cancel')) return; // user cancelled — stay silent
+      if (msg.toLowerCase().includes('cancel')) return;
       setCurrentPurchaseAttempt(null);
       Alert.alert('Purchase Failed', msg || 'Something went wrong. Please try again.');
     }
@@ -323,26 +261,23 @@ export default function SubscriptionScreen() {
     isRestoringRef.current = true;
 
     try {
-      const results = await IAPService.restorePurchases();
+      const customerInfo = await restorePurchases();
 
-      if (Array.isArray(results) && results.length > 0) {
+      if (customerInfo.entitlements.active['ShopMyRoom Pro']) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('profiles').update({ is_pro_version: true }).eq('id', user.id);
+        }
         Alert.alert(
           'Purchases Restored',
           'Your subscription has been restored.',
           [{ text: 'Continue', onPress: () => router.replace('/(tabs)/' as any) }]
         );
       } else {
-        Alert.alert('Nothing to Restore', 'No previous purchases were found.');
+        Alert.alert('Nothing to Restore', 'No active subscription was found.');
       }
     } catch (err: any) {
-      const msg: string = err?.message ?? '';
-      if (msg.includes('No previous purchases')) {
-        Alert.alert('Nothing to Restore', 'No previous purchases were found.');
-      } else if (msg.includes('Could not connect')) {
-        Alert.alert('Connection Error', 'Could not connect to the store. Please check your connection and try again.');
-      } else {
-        Alert.alert('Restore Failed', msg || 'Something went wrong. Please try again.');
-      }
+      Alert.alert('Restore Failed', err?.message || 'Something went wrong. Please try again.');
     } finally {
       isRestoringRef.current = false;
     }
@@ -394,82 +329,58 @@ export default function SubscriptionScreen() {
       } catch {}
 
       await supabase.auth.signOut();
-      router.replace('/');
+      router.replace('/login');
     });
   }
 
   async function handleDiscountPurchase() {
-    if (__DEV__ && products.length === 0) {
+    if (__DEV__) {
       await simulatePurchase('discountedWeekly');
       return;
     }
 
-    if (!isIAPAvailable) {
-      Alert.alert(
-        'Purchases Unavailable',
-        'In-app purchases are not available on this device.'
-      );
-      return;
-    }
-
-    const productId = PRODUCT_IDS.discountedWeekly;
-
-    try {
-      supabase.functions.invoke('track-event', {
-        body: {
-          event: 'discount_purchase_initiated',
-          productId,
-          price: '$1.99',
-        },
-      });
-    } catch {}
-
-    const offerToken =
-      Platform.OS === 'android' ? androidOfferTokens['weekly'] : undefined;
-
     setCurrentPurchaseAttempt('weekly');
 
     try {
-      await IAPService.purchaseSubscription(productId, offerToken);
+      const offerings = await Purchases.getOfferings();
+      const current = offerings.current;
 
-      try {
-        await supabase.functions.invoke('validate-receipt', {
-          body: { productId, source: 'direct' },
-        });
-      } catch {}
+      if (!current) {
+        Alert.alert('Unavailable', 'No offerings found. Please try again later.');
+        setCurrentPurchaseAttempt(null);
+        return;
+      }
+
+      const pkg = current.availablePackages.find(
+        (p) => p.packageType === PACKAGE_TYPE.WEEKLY
+      );
+
+      if (!pkg) {
+        Alert.alert('Product Unavailable', 'This offer is no longer available. Please choose another plan.');
+        setCurrentPurchaseAttempt(null);
+        return;
+      }
+
+      const customerInfo = await purchasePackage(pkg);
+
+      if (customerInfo.entitlements.active['ShopMyRoom Pro']) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('profiles').update({ is_pro_version: true }).eq('id', user.id);
+        }
+      }
 
       router.replace('/(tabs)/' as any);
     } catch (err: any) {
       const msg: string = err?.message ?? '';
       setCurrentPurchaseAttempt(null);
-
       if (/cancel/i.test(msg)) return;
-
-      if (/already owned|already subscribed/i.test(msg)) {
-        Alert.alert(
-          'Already Subscribed',
-          "It looks like you already own this subscription. Try restoring your purchases."
-        );
-      } else if (/item unavailable|product not available/i.test(msg)) {
-        Alert.alert(
-          'Product Unavailable',
-          'This offer is no longer available. Please choose another plan.'
-        );
-      } else {
-        Alert.alert('Purchase Failed', msg || 'Something went wrong. Please try again.');
-      }
+      Alert.alert('Purchase Failed', msg || 'Something went wrong. Please try again.');
     }
   }
 
-  const isButtonDisabled = !iapReady || loadingProducts || currentPurchaseAttempt !== null;
-
-  const buttonLabel = !iapReady
-    ? 'Connecting...'
-    : loadingProducts
-    ? 'Loading...'
-    : currentPurchaseAttempt
-    ? 'Processing...'
-    : 'Get Started';
+  const isButtonDisabled = currentPurchaseAttempt !== null;
+  const buttonLabel = currentPurchaseAttempt ? 'Processing...' : 'Get Started';
 
   const modalScale = discountModalAnim.interpolate({
     inputRange: [0, 1],
@@ -526,7 +437,7 @@ export default function SubscriptionScreen() {
         {/* Plan cards */}
         <View style={s.plansSection}>
 
-          {/* Weekly */}
+          {/* Lifetime */}
           <TouchableOpacity
             style={[s.planCard, selectedPlan === 'weekly' && s.planCardSelected]}
             onPress={() => setSelectedPlan('weekly')}
@@ -603,6 +514,37 @@ export default function SubscriptionScreen() {
         </TouchableOpacity>
         <Text style={s.cancelNote}>Cancel Anytime. No Commitment.</Text>
       </View>
+
+      {/* Debug toggle */}
+      <TouchableOpacity
+        style={s.debugToggle}
+        onPress={() => setShowDebug(p => !p)}
+        activeOpacity={0.7}
+      >
+        <Text style={s.debugToggleText}>🛠 {showDebug ? 'Hide' : 'Debug'}</Text>
+      </TouchableOpacity>
+
+      {showDebug && (
+        <View style={s.debugPanel}>
+          <Text style={s.debugTitle}>RevenueCat Debug</Text>
+          <Text style={s.debugLabel}>Offering: <Text style={s.debugValue}>{debugInfo?.offerings ?? '...'}</Text></Text>
+          <Text style={s.debugLabel}>Packages:</Text>
+          {(debugInfo?.packages ?? []).map((p, i) => (
+            <Text key={i} style={s.debugValue}>  {p}</Text>
+          ))}
+          <Text style={s.debugLabel}>Active Entitlements: <Text style={s.debugValue}>{debugInfo?.entitlements ?? '...'}</Text></Text>
+          <Text style={s.debugLabel}>Active Subscriptions:</Text>
+          {(debugInfo?.activeSubscriptions ?? []).map((s, i) => (
+            <Text key={i} style={s.debugValue}>  {s}</Text>
+          ))}
+          <TouchableOpacity
+            style={s.debugSimBtn}
+            onPress={() => simulatePurchase(selectedPlan)}
+          >
+            <Text style={s.debugSimBtnText}>Simulate {selectedPlan} purchase</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Discount modal */}
       {showDiscountModal && (
@@ -827,6 +769,61 @@ const s = StyleSheet.create({
   cancelNote: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.35)',
+  },
+
+  // Debug panel
+  debugToggle: {
+    position: 'absolute',
+    bottom: 100,
+    right: 16,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    zIndex: 50,
+  },
+  debugToggleText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+  },
+  debugPanel: {
+    position: 'absolute',
+    bottom: 130,
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    borderRadius: 12,
+    padding: 14,
+    zIndex: 50,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  debugTitle: {
+    color: '#f59e0b',
+    fontWeight: '700',
+    fontSize: 13,
+    marginBottom: 6,
+  },
+  debugLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 11,
+  },
+  debugValue: {
+    color: '#a5f3fc',
+    fontSize: 11,
+  },
+  debugSimBtn: {
+    marginTop: 8,
+    backgroundColor: '#1e40af',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  debugSimBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   // Discount modal

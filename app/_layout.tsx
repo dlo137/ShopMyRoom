@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,41 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
-import { Slot } from 'expo-router';
+import { Slot, useRouter, useSegments } from 'expo-router';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 export default function RootLayout() {
+  useEffect(() => {
+    Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+    if (Platform.OS === 'ios') {
+      Purchases.configure({ apiKey: 'appl_DTNJDhMIgHzLtvBpteHLQhhKCGx' });
+    } else {
+      Purchases.configure({ apiKey: 'appl_DTNJDhMIgHzLtvBpteHLQhhKCGx' });
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) Purchases.logIn(session.user.id);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        Purchases.logIn(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        Purchases.logOut();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -29,6 +56,24 @@ export default function RootLayout() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', async ({ url }) => {
+      if (url.includes('supabase.co/auth/v1/callback')) {
+        await supabase.auth.getSession();
+        router.replace('/(tabs)/');
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const inTabs = segments[0] === '(tabs)';
+    if (!session && inTabs) {
+      router.replace('/login');
+    }
+  }, [session, loading, segments]);
 
   if (loading) {
     return (

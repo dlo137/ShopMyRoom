@@ -21,7 +21,7 @@ export function useGenerate() {
   const [products, setProducts] = useState<ProductResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  async function startGeneration(localImageUri: string, style: string) {
+  async function startGeneration(localImageUri: string, style: string, room: string = 'Living Room') {
     try {
       setError(null);
 
@@ -76,7 +76,7 @@ export function useGenerate() {
       setStatus('generating');
 
       // generateRoom returns a data URI: "data:image/jpeg;base64,..."
-      const generatedDataUri = await generateRoom(originalImageUrl, style);
+      const generatedDataUri = await generateRoom(originalImageUrl, style, room);
 
       // Extract base64 from data URI and upload directly
       const [header, generatedBase64] = generatedDataUri.split(',');

@@ -27,8 +27,8 @@ export async function listAvailableModels(): Promise<void> {
   console.log('[Models]', JSON.stringify(imageModels?.map((m: any) => m.name), null, 2));
 }
 
-export async function generateRoom(imageUrl: string, style: string): Promise<string> {
-  console.log('[NanaBanana] Starting generation — style:', style);
+export async function generateRoom(imageUrl: string, style: string, room: string = 'Living Room'): Promise<string> {
+  console.log('[NanaBanana] Starting generation — style:', style, '| room:', room);
 
   // Step 1: Fetch source image and convert to base64
   console.log('[NanaBanana] Fetching source image:', imageUrl);
@@ -50,7 +50,7 @@ export async function generateRoom(imageUrl: string, style: string): Promise<str
             },
           },
           {
-            text: buildPrompt(style),
+            text: buildPrompt(style, room),
           },
         ],
       },
@@ -94,18 +94,18 @@ export async function generateRoom(imageUrl: string, style: string): Promise<str
   return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
 }
 
-function buildPrompt(style: string): string {
-  return `You are an expert interior designer. Redesign this room in a ${style} style.
+function buildPrompt(style: string, room: string): string {
+  return `You are an expert interior designer. Redesign this ${room} in a ${style} style.
 
 Requirements:
 - Keep the exact same room layout, dimensions, windows, and doors
-- Replace all furniture, decor, and surfaces with ${style} style equivalents
-- Use a cohesive color palette appropriate for ${style} interior design
+- Replace all furniture, decor, and surfaces with ${style} style equivalents suited for a ${room}
+- Use a cohesive color palette appropriate for ${style} interior design in a ${room}
 - Maintain realistic lighting and shadows that match the original photo
 - Output a photorealistic interior design photo, high resolution, professionally staged
 - Do NOT add people or text overlays
 
-The result should look like a professional real estate or interior design photograph.`;
+The result should look like a professional real estate or interior design photograph of a ${room}.`;
 }
 
 function blobToBase64(blob: Blob): Promise<string> {

@@ -6,31 +6,88 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   Alert,
+  Share,
+  Platform,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ProductResult } from '../../types/product';
-import ProductShelf from '../../components/ProductShelf';
-import { colors, radius, shadow, spacing } from '../../lib/theme';
+import * as FileSystem from 'expo-file-system/legacy';
+import { ProductResult } from '../types/product';
+import ProductShelf from '../components/ProductShelf';
+import { colors, radius, shadow, spacing } from '../lib/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ResultsScreen() {
   const router = useRouter();
-  const { generatedImageUrl, originalImageUri, productsJson } = useLocalSearchParams<{
+  const { generatedImageUrl, originalImageUri, productsJson, selectedStyle } = useLocalSearchParams<{
     generatedImageUrl: string;
     originalImageUri: string;
     productsJson: string;
+    selectedStyle: string;
   }>();
 
   const products: ProductResult[] = productsJson ? JSON.parse(productsJson) : [];
   const [showBefore, setShowBefore] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const hasOriginal = Boolean(originalImageUri);
   const displayImage = showBefore ? originalImageUri : generatedImageUrl;
+
+  async function downloadToLocal(): Promise<string> {
+    const localUri = FileSystem.cacheDirectory + `room-${Date.now()}.jpg`;
+    const { uri } = await FileSystem.downloadAsync(generatedImageUrl, localUri);
+    return uri;
+  }
+
+  async function handleRegenerate() {
+    router.push({
+      pathname: '/(tabs)/',
+      params: {
+        originalImageUri: originalImageUri ?? '',
+        selectedStyle: selectedStyle ?? 'Modern',
+      },
+    });
+  }
+
+  async function handleSave() {
+    if (!generatedImageUrl) return;
+    setSaving(true);
+    try {
+      const localUri = await downloadToLocal();
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { url: localUri }
+          : { message: generatedImageUrl }
+      );
+    } catch (err: any) {
+      if (!err?.message?.includes('cancel')) {
+        console.error('[results] save error:', err);
+        Alert.alert('Save Failed', 'Could not save the image. Please try again.');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleShare() {
+    if (!generatedImageUrl) return;
+    try {
+      const localUri = await downloadToLocal();
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { url: localUri, message: 'Check out my AI room design from ShopMyRoom!' }
+          : { message: `Check out my AI room design from ShopMyRoom! ${generatedImageUrl}` }
+      );
+    } catch (err: any) {
+      if (!err?.message?.includes('cancel')) {
+        Alert.alert('Share Failed', 'Could not share the image. Please try again.');
+      }
+    }
+  }
 
   return (
     <SafeAreaView style={s.safe}>
@@ -87,19 +144,18 @@ export default function ResultsScreen() {
           <ActionButton
             icon="refresh-outline"
             label="Regenerate"
-            onPress={() =>
-              Alert.alert('Regenerate', 'Go back and tap Generate Design again.')
-            }
+            onPress={handleRegenerate}
           />
           <ActionButton
             icon="bookmark-outline"
-            label="Save"
-            onPress={() => Alert.alert('Coming Soon', 'Saving will be available soon.')}
+            label={saving ? 'Saving...' : 'Save'}
+            onPress={handleSave}
+            disabled={saving}
           />
           <ActionButton
             icon="share-outline"
             label="Share"
-            onPress={() => Alert.alert('Coming Soon', 'Sharing will be available soon.')}
+            onPress={handleShare}
           />
         </View>
 
@@ -129,14 +185,16 @@ function ActionButton({
   icon,
   label,
   onPress,
+  disabled,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <TouchableOpacity style={s.actionBtn} onPress={onPress} activeOpacity={0.7}>
-      <View style={s.actionIcon}>
+    <TouchableOpacity style={s.actionBtn} onPress={onPress} activeOpacity={0.7} disabled={disabled}>
+      <View style={[s.actionIcon, disabled && { opacity: 0.4 }]}>
         <Ionicons name={icon} size={20} color={colors.text} />
       </View>
       <Text style={s.actionLabel}>{label}</Text>

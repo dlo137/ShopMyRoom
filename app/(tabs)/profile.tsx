@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,39 +8,105 @@ import {
   TextInput,
   Alert,
   Modal,
-  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, shadow, spacing } from '../../lib/theme';
+import { supabase } from '../../lib/supabase';
+import { restorePurchases } from '../../lib/purchases';
 
-const PLACEHOLDER_EMAIL = 'user@example.com';
-const GENERATIONS_COUNT = 12;
-const isPro = false;
+type Profile = {
+  email: string;
+  display_name: string | null;
+  is_pro_version: boolean;
+  subscription_plan: string | null;
+  credits_current: number;
+  credits_max: number;
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [generationsCount, setGenerationsCount] = useState(0);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState('Alex Johnson');
-  const [displayName, setDisplayName] = useState('Alex Johnson');
+  const [editName, setEditName] = useState('');
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  const initials = displayName.charAt(0).toUpperCase();
+  useEffect(() => {
+    loadProfile();
+  }, []);
 
-  function handleSave() {
-    setDisplayName(editName.trim() || displayName);
-    setIsEditing(false);
+  async function loadProfile() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const [{ data: profileData }, { count }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('generations').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+      ]);
+
+      if (profileData) {
+        setProfile(profileData);
+        setEditName(profileData.display_name ?? '');
+      }
+      setGenerationsCount(count ?? 0);
+    } catch (err) {
+      console.error('[profile] loadProfile error:', err);
+    } finally {
+      setLoadingProfile(false);
+    }
   }
 
-  function handleRestorePurchases() {
-    Alert.alert('Restore Purchases', 'No purchases found to restore.');
+  async function handleSave() {
+    const trimmed = editName.trim();
+    setIsEditing(false);
+    if (!trimmed || trimmed === profile?.display_name) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from('profiles').update({ display_name: trimmed }).eq('id', user.id);
+    if (error) {
+      console.error('[profile] display_name update error:', error.message);
+    } else {
+      setProfile(prev => prev ? { ...prev, display_name: trimmed } : prev);
+    }
+  }
+
+  async function handleRestorePurchases() {
+    try {
+      const customerInfo = await restorePurchases();
+
+      if (customerInfo.entitlements.active['pro']) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('profiles').update({ is_pro_version: true }).eq('id', user.id);
+          setProfile(prev => prev ? { ...prev, is_pro_version: true } : prev);
+        }
+        Alert.alert('Purchases Restored', 'Your subscription has been restored.');
+      } else {
+        Alert.alert('Nothing to Restore', 'No active subscription was found.');
+      }
+    } catch (err: any) {
+      Alert.alert('Restore Failed', err?.message || 'Something went wrong. Please try again.');
+    }
   }
 
   function handleSignOut() {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', onPress: () => console.log('sign out pressed') },
+      {
+        text: 'Sign Out',
+        onPress: async () => {
+          await supabase.auth.signOut({ scope: 'global' });
+          router.replace('/login');
+        },
+      },
     ]);
   }
 
@@ -50,10 +116,51 @@ export default function ProfileScreen() {
       'This will permanently delete your account and all your data. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => console.log('delete pressed') },
+        { text: 'Delete', style: 'destructive', onPress: confirmDeleteAccount },
       ]
     );
   }
+
+  async function confirmDeleteAccount() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert('Error', 'Not signed in.');
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      console.log('[profile] delete-account response:', JSON.stringify(data), JSON.stringify(error));
+
+      if (error) {
+        console.error('[profile] delete-account error:', JSON.stringify(error));
+        Alert.alert('Error', 'Failed to delete account. Please try again.');
+        return;
+      }
+
+      await supabase.auth.signOut({ scope: 'global' });
+      router.replace('/login');
+    } catch (err) {
+      console.error('[profile] delete-account unexpected error:', err);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
+  }
+
+  if (loadingProfile) {
+    return (
+      <SafeAreaView style={[s.safe, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  const email = profile?.email ?? '';
+  const displayName = profile?.display_name || email.split('@')[0] || 'User';
+  const isPro = profile?.is_pro_version ?? false;
+  const initials = displayName.charAt(0).toUpperCase();
 
   return (
     <SafeAreaView style={s.safe}>
@@ -90,7 +197,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={s.email}>{PLACEHOLDER_EMAIL}</Text>
+            <Text style={s.email}>{email}</Text>
           </View>
 
           {/* PLAN CARD */}
@@ -113,13 +220,13 @@ export default function ProfileScreen() {
 
             <View style={s.statsRow}>
               <View style={s.statItem}>
-                <Text style={s.statValue}>{GENERATIONS_COUNT}</Text>
+                <Text style={s.statValue}>{generationsCount}</Text>
                 <Text style={s.statLabel}>Rooms Designed</Text>
               </View>
               <View style={s.statDivider} />
               <View style={s.statItem}>
-                <Text style={s.statValue}>{isPro ? '∞' : '3'}</Text>
-                <Text style={s.statLabel}>{isPro ? 'Unlimited' : 'Remaining'}</Text>
+                <Text style={s.statValue}>{isPro ? profile?.credits_current ?? 0 : 0}</Text>
+                <Text style={s.statLabel}>{isPro ? 'Credits Left' : 'No Plan'}</Text>
               </View>
             </View>
 

@@ -8,8 +8,8 @@ import {
   ActivityIndicator,
   StyleSheet,
   Dimensions,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useHistory, GenerationWithProducts } from '../../hooks/useHistory';
@@ -81,7 +81,7 @@ export default function HistoryScreen() {
       product: p,
     }));
     router.push({
-      pathname: '/(tabs)/results',
+      pathname: '/results',
       params: {
         generatedImageUrl: gen.generated_image_url ?? gen.original_image_url ?? '',
         productsJson: JSON.stringify(productsJson),

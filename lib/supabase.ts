@@ -18,3 +18,30 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+export async function signInWithApple() {
+  const AppleAuthentication = await import('expo-apple-authentication');
+  const Crypto = await import('expo-crypto');
+
+  const rawNonce = Math.random().toString(36).substring(2);
+  const hashedNonce = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    rawNonce
+  );
+
+  const credential = await AppleAuthentication.signInAsync({
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+    ],
+    nonce: hashedNonce,
+  });
+
+  const { data, error } = await supabase.auth.signInWithIdToken({
+    provider: 'apple',
+    token: credential.identityToken!,
+    nonce: rawNonce,
+  });
+
+  return { data, error };
+}

@@ -17,7 +17,8 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourname.shopmyroom",
+      "bundleIdentifier": "com.watsonsweb.shopmyroom",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "We need access to your photos to redesign your room.",
         "NSCameraUsageDescription": "Take a photo of your room to get started.",
@@ -26,7 +27,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-apple-authentication"
     ],
     "extra": {
       "router": {},
