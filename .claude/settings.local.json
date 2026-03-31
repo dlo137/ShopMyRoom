@@ -11,7 +11,10 @@
       "Bash(find C:UsersaidawDesktopCode -type f \\\\\\(-name *.js -o -name *.ts -o -name *.jsx -o -name *.tsx -o -name *.json -o -name *.py -o -name *.md -o -name *.txt -o -name *.env* \\\\\\) ! -path *ShopMyRoom*)",
       "Bash(cd:*)",
       "Bash(node:*)",
-      "Bash(clip)"
+      "Bash(clip)",
+      "WebFetch(domain:www.revenuecat.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

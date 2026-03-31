@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,6 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Purchases, { PurchasesPackage, PACKAGE_TYPE } from 'react-native-purchases';
-import { purchasePackage, restorePurchases } from '../lib/purchases';
 import { supabase } from '../lib/supabase';
 
 
@@ -38,18 +36,6 @@ export default function SubscriptionScreen() {
   const [currentPurchaseAttempt, setCurrentPurchaseAttempt] = useState<
     'monthly' | 'yearly' | 'weekly' | null
   >(null);
-
-  // Debug panel
-  const [showDebug, setShowDebug] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<{
-    offerings: string;
-    packages: string[];
-    entitlements: string;
-    activeSubscriptions: string[];
-  } | null>(null);
-
-  // Refs
-  const isRestoringRef = useRef(false);
 
   // ── 1. Fade-in on mount + mark paywall seen ──────────────────────────────
 
@@ -76,45 +62,6 @@ export default function SubscriptionScreen() {
     markPaywallSeen();
   }, []);
 
-  // ── 2. RevenueCat debug ───────────────────────────────────────────────────
-
-  useEffect(() => {
-    async function debugRC() {
-      const info: typeof debugInfo = {
-        offerings: 'none',
-        packages: [],
-        entitlements: '{}',
-        activeSubscriptions: [],
-      };
-
-      try {
-        const offerings = await Purchases.getOfferings();
-        console.log('[RC] offerings current:', offerings.current);
-        const pkgs = offerings.current?.availablePackages.map(p => p.packageType + ' - ' + p.product.identifier) ?? [];
-        console.log('[RC] available packages:', pkgs);
-        info.offerings = offerings.current?.identifier ?? 'null';
-        info.packages = pkgs;
-      } catch (e) {
-        console.log('[RC] getOfferings error:', e);
-        info.offerings = 'ERROR: ' + String(e);
-      }
-
-      try {
-        const customerInfo = await Purchases.getCustomerInfo();
-        console.log('[RC] customerInfo entitlements active:', customerInfo.entitlements.active);
-        console.log('[RC] customerInfo activeSubscriptions:', customerInfo.activeSubscriptions);
-        info.entitlements = JSON.stringify(Object.keys(customerInfo.entitlements.active));
-        info.activeSubscriptions = customerInfo.activeSubscriptions;
-      } catch (e) {
-        console.log('[RC] getCustomerInfo error:', e);
-        info.entitlements = 'ERROR: ' + String(e);
-      }
-
-      setDebugInfo(info);
-    }
-
-    debugRC();
-  }, []);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -185,102 +132,11 @@ export default function SubscriptionScreen() {
   }
 
   async function handleContinue() {
-    if (__DEV__) {
-      await simulatePurchase(selectedPlan);
-      return;
-    }
-
-    setCurrentPurchaseAttempt(selectedPlan);
-
-    try {
-      const offerings = await Purchases.getOfferings();
-      const current = offerings.current;
-
-      if (!current) {
-        Alert.alert('Unavailable', 'No offerings found. Please try again later.');
-        setCurrentPurchaseAttempt(null);
-        return;
-      }
-
-      const packageTypeMap = {
-        yearly: PACKAGE_TYPE.ANNUAL,
-        monthly: PACKAGE_TYPE.MONTHLY,
-        weekly: PACKAGE_TYPE.WEEKLY,
-      };
-
-      const pkg = current.availablePackages.find(
-        (p) => p.packageType === packageTypeMap[selectedPlan]
-      );
-
-      if (!pkg) {
-        Alert.alert('Product Not Found', 'Unable to load this subscription. Please try again later.');
-        setCurrentPurchaseAttempt(null);
-        return;
-      }
-
-      const customerInfo = await purchasePackage(pkg);
-
-      if (customerInfo.entitlements.active['ShopMyRoom Pro']) {
-        const creditsMap: Record<string, number> = { yearly: 90, monthly: 75, weekly: 10 };
-        const credits_max = creditsMap[selectedPlan] ?? 10;
-        const now = new Date().toISOString();
-
-        let { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          const { data: anonData } = await supabase.auth.signInAnonymously();
-          user = anonData.user;
-        }
-        if (user) {
-          await supabase.from('profiles').upsert({
-            id: user.id,
-            email: user.email,
-            updated_at: now,
-          });
-          await supabase.from('profiles').update({
-            is_pro_version: true,
-            subscription_plan: selectedPlan,
-            entitlement: 'pro',
-            credits_current: credits_max,
-            credits_max,
-            purchase_time: now,
-          }).eq('id', user.id);
-        }
-      }
-
-      router.replace('/(tabs)/' as any);
-    } catch (err: any) {
-      const msg: string = err?.message ?? '';
-      if (msg.toLowerCase().includes('cancel')) return;
-      setCurrentPurchaseAttempt(null);
-      Alert.alert('Purchase Failed', msg || 'Something went wrong. Please try again.');
-    }
+    await simulatePurchase(selectedPlan);
   }
 
-  async function handleRestore() {
-    if (isRestoringRef.current) return;
-    isRestoringRef.current = true;
-
-    try {
-      const customerInfo = await restorePurchases();
-
-      if (customerInfo.entitlements.active['ShopMyRoom Pro']) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from('profiles').update({ is_pro_version: true }).eq('id', user.id);
-        }
-        Alert.alert(
-          'Purchases Restored',
-          'Your subscription has been restored.',
-          [{ text: 'Continue', onPress: () => router.replace('/(tabs)/' as any) }]
-        );
-      } else {
-        Alert.alert('Nothing to Restore', 'No active subscription was found.');
-      }
-    } catch (err: any) {
-      Alert.alert('Restore Failed', err?.message || 'Something went wrong. Please try again.');
-    } finally {
-      isRestoringRef.current = false;
-    }
+  function handleRestore() {
+    Alert.alert('Coming Soon', 'Purchase restore will be available in a future update.');
   }
 
   function handleClose() {
@@ -334,49 +190,7 @@ export default function SubscriptionScreen() {
   }
 
   async function handleDiscountPurchase() {
-    if (__DEV__) {
-      await simulatePurchase('discountedWeekly');
-      return;
-    }
-
-    setCurrentPurchaseAttempt('weekly');
-
-    try {
-      const offerings = await Purchases.getOfferings();
-      const current = offerings.current;
-
-      if (!current) {
-        Alert.alert('Unavailable', 'No offerings found. Please try again later.');
-        setCurrentPurchaseAttempt(null);
-        return;
-      }
-
-      const pkg = current.availablePackages.find(
-        (p) => p.packageType === PACKAGE_TYPE.WEEKLY
-      );
-
-      if (!pkg) {
-        Alert.alert('Product Unavailable', 'This offer is no longer available. Please choose another plan.');
-        setCurrentPurchaseAttempt(null);
-        return;
-      }
-
-      const customerInfo = await purchasePackage(pkg);
-
-      if (customerInfo.entitlements.active['ShopMyRoom Pro']) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from('profiles').update({ is_pro_version: true }).eq('id', user.id);
-        }
-      }
-
-      router.replace('/(tabs)/' as any);
-    } catch (err: any) {
-      const msg: string = err?.message ?? '';
-      setCurrentPurchaseAttempt(null);
-      if (/cancel/i.test(msg)) return;
-      Alert.alert('Purchase Failed', msg || 'Something went wrong. Please try again.');
-    }
+    await simulatePurchase('discountedWeekly');
   }
 
   const isButtonDisabled = currentPurchaseAttempt !== null;
@@ -515,36 +329,6 @@ export default function SubscriptionScreen() {
         <Text style={s.cancelNote}>Cancel Anytime. No Commitment.</Text>
       </View>
 
-      {/* Debug toggle */}
-      <TouchableOpacity
-        style={s.debugToggle}
-        onPress={() => setShowDebug(p => !p)}
-        activeOpacity={0.7}
-      >
-        <Text style={s.debugToggleText}>🛠 {showDebug ? 'Hide' : 'Debug'}</Text>
-      </TouchableOpacity>
-
-      {showDebug && (
-        <View style={s.debugPanel}>
-          <Text style={s.debugTitle}>RevenueCat Debug</Text>
-          <Text style={s.debugLabel}>Offering: <Text style={s.debugValue}>{debugInfo?.offerings ?? '...'}</Text></Text>
-          <Text style={s.debugLabel}>Packages:</Text>
-          {(debugInfo?.packages ?? []).map((p, i) => (
-            <Text key={i} style={s.debugValue}>  {p}</Text>
-          ))}
-          <Text style={s.debugLabel}>Active Entitlements: <Text style={s.debugValue}>{debugInfo?.entitlements ?? '...'}</Text></Text>
-          <Text style={s.debugLabel}>Active Subscriptions:</Text>
-          {(debugInfo?.activeSubscriptions ?? []).map((s, i) => (
-            <Text key={i} style={s.debugValue}>  {s}</Text>
-          ))}
-          <TouchableOpacity
-            style={s.debugSimBtn}
-            onPress={() => simulatePurchase(selectedPlan)}
-          >
-            <Text style={s.debugSimBtnText}>Simulate {selectedPlan} purchase</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Discount modal */}
       {showDiscountModal && (

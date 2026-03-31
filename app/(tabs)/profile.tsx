@@ -16,7 +16,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, shadow, spacing } from '../../lib/theme';
 import { supabase } from '../../lib/supabase';
-import { restorePurchases } from '../../lib/purchases';
 
 type Profile = {
   email: string;
@@ -78,23 +77,8 @@ export default function ProfileScreen() {
     }
   }
 
-  async function handleRestorePurchases() {
-    try {
-      const customerInfo = await restorePurchases();
-
-      if (customerInfo.entitlements.active['ShopMyRoom Pro']) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from('profiles').update({ is_pro_version: true }).eq('id', user.id);
-          setProfile(prev => prev ? { ...prev, is_pro_version: true } : prev);
-        }
-        Alert.alert('Purchases Restored', 'Your subscription has been restored.');
-      } else {
-        Alert.alert('Nothing to Restore', 'No active subscription was found.');
-      }
-    } catch (err: any) {
-      Alert.alert('Restore Failed', err?.message || 'Something went wrong. Please try again.');
-    }
+  function handleRestorePurchases() {
+    Alert.alert('Coming Soon', 'Purchase restore will be available in a future update.');
   }
 
   function handleSignOut() {

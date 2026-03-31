@@ -1,20 +1,14 @@
-import Purchases, { PurchasesPackage } from 'react-native-purchases';
+// RevenueCat removed. Stub exports keep imports in other files from breaking
+// while purchases are disabled.
 
 export async function getActiveSubscription() {
-  const customerInfo = await Purchases.getCustomerInfo();
-  return customerInfo;
+  return null;
 }
 
-export async function purchasePackage(pkg: PurchasesPackage) {
-  try {
-    const { customerInfo } = await Purchases.purchasePackage(pkg);
-    return customerInfo;
-  } catch (error) {
-    throw error;
-  }
+export async function purchasePackage(_pkg: unknown) {
+  throw new Error('Purchases not available.');
 }
 
 export async function restorePurchases() {
-  const customerInfo = await Purchases.restorePurchases();
-  return customerInfo;
+  throw new Error('Purchases not available.');
 }
