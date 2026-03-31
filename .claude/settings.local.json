@@ -14,7 +14,8 @@
       "Bash(clip)",
       "WebFetch(domain:www.revenuecat.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:expo.dev)"
     ]
   }
 }
