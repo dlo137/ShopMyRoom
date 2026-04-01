@@ -15,20 +15,36 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
-// TEMP DISABLED FOR CRASH TEST — ConfettiCannon disabled
+
+// ── Feature Flags ──────────────────────────────────────────────────────────
+// Toggle these to re-enable features. When enabling, also uncomment the
+// matching import below and verify the package is installed.
+const ENABLE_AUTH_CHECK         = false;  // Supabase session check on mount
+const ENABLE_AUTO_NAVIGATION    = false;  // router.push('/subscription') on CTA
+const ENABLE_CONFETTI           = false;  // ConfettiCannon on step 1
+const ENABLE_HAPTICS            = false;  // expo-haptics on step 1 load
+const ENABLE_FLOATING_PARTICLES = false;  // FloatingParticles background layer
+const ENABLE_TIME_CHART         = false;  // TimeChart on step 2
+// ───────────────────────────────────────────────────────────────────────────
+
+// [ENABLE_CONFETTI] — uncomment when flag is true:
 // import ConfettiCannon from 'react-native-confetti-cannon';
-// TEMP DISABLED FOR CRASH TEST — Haptics disabled
+
+// [ENABLE_HAPTICS] — uncomment when flag is true:
 // import * as Haptics from 'expo-haptics';
-// TEMP DISABLED FOR CRASH TEST — Supabase disabled
+
+// [ENABLE_AUTH_CHECK] — uncomment when flag is true:
 // import { supabase } from '../lib/supabase';
-// TEMP DISABLED FOR CRASH TEST — FloatingParticles disabled
+
+// [ENABLE_FLOATING_PARTICLES] — uncomment when flag is true:
 // import FloatingParticles from '../src/components/FloatingParticles';
-// TEMP DISABLED FOR CRASH TEST — TimeChart disabled
+
+// [ENABLE_TIME_CHART] — uncomment when flag is true:
 // import TimeChart from '../src/components/TimeChart';
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window');
 
-// TEMP DISABLED FOR CRASH TEST — haptic helper disabled (Haptics import removed)
+// [ENABLE_HAPTICS] — restore when flag is true
 // async function triggerHaptic(style: Haptics.ImpactFeedbackStyle) {
 //   try {
 //     await Haptics.impactAsync(style);
@@ -56,8 +72,9 @@ function GradientText({ children, style }: { children: string; style?: TextStyle
 export default function OnboardingScreen() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  // TEMP DISABLED FOR CRASH TEST — start false so we skip the auth loading spinner
-  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+
+  // [ENABLE_AUTH_CHECK] — starts false so auth spinner is skipped while flag is off
+  const [isCheckingAuth, setIsCheckingAuth] = useState(ENABLE_AUTH_CHECK);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -83,48 +100,54 @@ export default function OnboardingScreen() {
     return () => pulse.stop();
   }, []);
 
-  // TEMP DISABLED FOR CRASH TEST — Supabase session check disabled
-  // useEffect(() => {
-  //   checkSession();
-  // }, []);
+  // [STARTUP SIDE EFFECT DISABLED: Supabase auth check on mount]
+  // Set ENABLE_AUTH_CHECK = true (and uncomment the supabase import) to restore.
+  useEffect(() => {
+    if (!ENABLE_AUTH_CHECK) return;
+    checkSession();
+  }, []);
 
-  // TEMP DISABLED FOR CRASH TEST — Haptics on step 1 disabled
-  // useEffect(() => {
-  //   if (step === 1 && !isCheckingAuth) {
-  //     triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
-  //     setTimeout(() => triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy), 100);
-  //     setTimeout(() => triggerHaptic(Haptics.ImpactFeedbackStyle.Medium), 200);
-  //   }
-  // }, [isCheckingAuth]);
+  // [STARTUP SIDE EFFECT DISABLED: haptic burst on step 1]
+  // Set ENABLE_HAPTICS = true (and uncomment the Haptics import + triggerHaptic) to restore.
+  useEffect(() => {
+    if (!ENABLE_HAPTICS) return;
+    if (step === 1 && !isCheckingAuth) {
+      // triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+      // setTimeout(() => triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy), 100);
+      // setTimeout(() => triggerHaptic(Haptics.ImpactFeedbackStyle.Medium), 200);
+    }
+  }, [isCheckingAuth]);
 
-  // TEMP DISABLED FOR CRASH TEST — Supabase checkSession function disabled
-  // async function checkSession() {
-  //   try {
-  //     const { data: { session }, error } = await supabase.auth.getSession();
-
-  //     if (error) {
-  //       if (error.message.includes('refresh_token') || error.message.includes('Refresh Token')) {
-  //         await supabase.auth.signOut();
-  //       }
-  //       setIsCheckingAuth(false);
-  //       return;
-  //     }
-
-  //     if (session) {
-  //       router.replace('/(tabs)/');
-  //       return;
-  //     }
-
-  //     setIsCheckingAuth(false);
-  //   } catch {
-  //     setIsCheckingAuth(false);
-  //   }
-  // }
+  // [STARTUP SIDE EFFECT DISABLED: Supabase checkSession body]
+  // Restore the body below when ENABLE_AUTH_CHECK = true and supabase import is uncommented.
+  async function checkSession() {
+    // try {
+    //   const { data: { session }, error } = await supabase.auth.getSession();
+    //
+    //   if (error) {
+    //     if (error.message.includes('refresh_token') || error.message.includes('Refresh Token')) {
+    //       await supabase.auth.signOut();
+    //     }
+    //     setIsCheckingAuth(false);
+    //     return;
+    //   }
+    //
+    //   if (session) {
+    //     router.replace('/(tabs)/');
+    //     return;
+    //   }
+    //
+    //   setIsCheckingAuth(false);
+    // } catch {
+    //   setIsCheckingAuth(false);
+    // }
+  }
 
   function handleGetStarted() {
-    // TEMP DISABLED FOR CRASH TEST — router.push disabled to prevent navigation crash
-    // router.push('/subscription');
-    console.log('[CRASH TEST] handleGetStarted pressed — navigation disabled');
+    // [STARTUP SIDE EFFECT DISABLED: auto-navigation to /subscription]
+    // Set ENABLE_AUTO_NAVIGATION = true to restore router.push.
+    if (!ENABLE_AUTO_NAVIGATION) return;
+    router.push('/subscription');
   }
 
   const translateX = slideAnim.interpolate({
@@ -144,8 +167,12 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={s.container}>
       <StatusBar style="dark" />
-      {/* TEMP DISABLED FOR CRASH TEST — FloatingParticles disabled */}
-      {/* <FloatingParticles /> */}
+
+      {/* [ENABLE_FLOATING_PARTICLES] */}
+      {ENABLE_FLOATING_PARTICLES && (
+        // <FloatingParticles />
+        null
+      )}
 
       <Animated.View
         style={{
@@ -201,35 +228,41 @@ export default function OnboardingScreen() {
           <View style={{ gap: 16, width: '100%' }}>
             <Text style={s.title}>{'Save instantly.\nSave 85% of your time & cost.'}</Text>
             <Text style={s.subtitle}>Grow faster</Text>
-            {/* TEMP DISABLED FOR CRASH TEST — TimeChart disabled */}
-            {/* <TimeChart /> */}
+
+            {/* [ENABLE_TIME_CHART] */}
+            {ENABLE_TIME_CHART && (
+              // <TimeChart />
+              null
+            )}
           </View>
         )}
 
         {step === 1 && (
           <>
-            {/* TEMP DISABLED FOR CRASH TEST — ConfettiCannon disabled */}
-            {/* <View style={s.confettiWrapper}>
-              <ConfettiCannon
-                count={40}
-                origin={{ x: WINDOW_WIDTH * 0.25, y: 0 }}
-                autoStart
-                fadeOut
-                fallSpeed={3000}
-                explosionSpeed={400}
-                colors={CONFETTI_COLORS}
-              />
-              <ConfettiCannon
-                count={40}
-                origin={{ x: WINDOW_WIDTH * 0.75, y: 0 }}
-                autoStart
-                fadeOut
-                fallSpeed={3000}
-                explosionSpeed={400}
-                colors={CONFETTI_COLORS}
-              />
-            </View> */}
-
+            {/* [ENABLE_CONFETTI] */}
+            {ENABLE_CONFETTI && (
+              // <View style={s.confettiWrapper}>
+              //   <ConfettiCannon
+              //     count={40}
+              //     origin={{ x: WINDOW_WIDTH * 0.25, y: 0 }}
+              //     autoStart
+              //     fadeOut
+              //     fallSpeed={3000}
+              //     explosionSpeed={400}
+              //     colors={CONFETTI_COLORS}
+              //   />
+              //   <ConfettiCannon
+              //     count={40}
+              //     origin={{ x: WINDOW_WIDTH * 0.75, y: 0 }}
+              //     autoStart
+              //     fadeOut
+              //     fallSpeed={3000}
+              //     explosionSpeed={400}
+              //     colors={CONFETTI_COLORS}
+              //   />
+              // </View>
+              null
+            )}
 
             {/* Hero image */}
             <View style={s.heroImageWrapper}>

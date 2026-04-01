@@ -7,10 +7,16 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 // AsyncStorage uses SQLite on iOS — no Keychain access, no cold-boot timing issues.
 // expo-secure-store (Keychain) was causing SIGABRT at ~684ms on cold launch before
 // the Keychain service was fully available.
+
+// [STARTUP SIDE EFFECT DISABLED: autoRefreshToken]
+// autoRefreshToken=true was scheduling a background token refresh on every cold
+// launch via AsyncStorage → SQLite (RCTNativeModule call). If the stored session
+// was stale or the refresh produced an unhandled rejection, it crashed via RCTFatal.
+// Set back to true once the crash is confirmed resolved.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
-    autoRefreshToken: true,
+    autoRefreshToken: false,   // DISABLED — was triggering background refresh on startup
     persistSession: true,
     detectSessionInUrl: false,
   },
