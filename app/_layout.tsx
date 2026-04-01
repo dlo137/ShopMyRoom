@@ -7,7 +7,8 @@ import {
 } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+// TEMP DISABLED FOR CRASH TEST — supabase import disabled to isolate startup crash
+// import { supabase } from '../lib/supabase';
 
 console.log('[LAUNCH] app entry reached');
 
@@ -53,33 +54,34 @@ class ErrorBoundary extends React.Component<
 export default function RootLayout() {
   console.log('[LAUNCH] RootLayout render reached');
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  // TEMP DISABLED FOR CRASH TEST — start with loading=false to skip Supabase session fetch
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const segments = useSegments();
 
-  // --- Session / auth state ---
-  useEffect(() => {
-    console.log('[LAUNCH] first useEffect ran');
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+  // TEMP DISABLED FOR CRASH TEST — Supabase session fetch + auth state listener disabled
+  // useEffect(() => {
+  //   console.log('[LAUNCH] first useEffect ran');
+  //   supabase.auth.getSession().then(({ data: { session } }) => {
+  //     setSession(session);
+  //     setLoading(false);
+  //   });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+  //   const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+  //     setSession(session);
+  //   });
 
-    return () => subscription.unsubscribe();
-  }, []);
+  //   return () => subscription.unsubscribe();
+  // }, []);
 
-  // --- Redirect unauthenticated users out of tabs ---
-  useEffect(() => {
-    if (loading) return;
-    const inTabs = segments[0] === '(tabs)';
-    if (!session && inTabs) {
-      router.replace('/login');
-    }
-  }, [session, loading, segments]);
+  // TEMP DISABLED FOR CRASH TEST — redirect unauthenticated users out of tabs disabled
+  // useEffect(() => {
+  //   if (loading) return;
+  //   const inTabs = segments[0] === '(tabs)';
+  //   if (!session && inTabs) {
+  //     router.replace('/login');
+  //   }
+  // }, [session, loading, segments]);
 
   if (loading) {
     return (

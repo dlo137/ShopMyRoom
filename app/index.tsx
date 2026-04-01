@@ -15,21 +15,27 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import * as Haptics from 'expo-haptics';
-import { supabase } from '../lib/supabase';
-import FloatingParticles from '../src/components/FloatingParticles';
-import TimeChart from '../src/components/TimeChart';
+// TEMP DISABLED FOR CRASH TEST — ConfettiCannon disabled
+// import ConfettiCannon from 'react-native-confetti-cannon';
+// TEMP DISABLED FOR CRASH TEST — Haptics disabled
+// import * as Haptics from 'expo-haptics';
+// TEMP DISABLED FOR CRASH TEST — Supabase disabled
+// import { supabase } from '../lib/supabase';
+// TEMP DISABLED FOR CRASH TEST — FloatingParticles disabled
+// import FloatingParticles from '../src/components/FloatingParticles';
+// TEMP DISABLED FOR CRASH TEST — TimeChart disabled
+// import TimeChart from '../src/components/TimeChart';
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window');
 
-async function triggerHaptic(style: Haptics.ImpactFeedbackStyle) {
-  try {
-    await Haptics.impactAsync(style);
-  } catch {
-    // silently fail in Expo Go or unsupported environments
-  }
-}
+// TEMP DISABLED FOR CRASH TEST — haptic helper disabled (Haptics import removed)
+// async function triggerHaptic(style: Haptics.ImpactFeedbackStyle) {
+//   try {
+//     await Haptics.impactAsync(style);
+//   } catch {
+//     // silently fail in Expo Go or unsupported environments
+//   }
+// }
 
 const CONFETTI_COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff', '#ffffff'];
 
@@ -50,7 +56,8 @@ function GradientText({ children, style }: { children: string; style?: TextStyle
 export default function OnboardingScreen() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  // TEMP DISABLED FOR CRASH TEST — start false so we skip the auth loading spinner
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -76,44 +83,48 @@ export default function OnboardingScreen() {
     return () => pulse.stop();
   }, []);
 
-  useEffect(() => {
-    checkSession();
-  }, []);
+  // TEMP DISABLED FOR CRASH TEST — Supabase session check disabled
+  // useEffect(() => {
+  //   checkSession();
+  // }, []);
 
-  // Haptics on step 1 once auth check resolves
-  useEffect(() => {
-    if (step === 1 && !isCheckingAuth) {
-      triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
-      setTimeout(() => triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy), 100);
-      setTimeout(() => triggerHaptic(Haptics.ImpactFeedbackStyle.Medium), 200);
-    }
-  }, [isCheckingAuth]);
+  // TEMP DISABLED FOR CRASH TEST — Haptics on step 1 disabled
+  // useEffect(() => {
+  //   if (step === 1 && !isCheckingAuth) {
+  //     triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+  //     setTimeout(() => triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy), 100);
+  //     setTimeout(() => triggerHaptic(Haptics.ImpactFeedbackStyle.Medium), 200);
+  //   }
+  // }, [isCheckingAuth]);
 
-  async function checkSession() {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
+  // TEMP DISABLED FOR CRASH TEST — Supabase checkSession function disabled
+  // async function checkSession() {
+  //   try {
+  //     const { data: { session }, error } = await supabase.auth.getSession();
 
-      if (error) {
-        if (error.message.includes('refresh_token') || error.message.includes('Refresh Token')) {
-          await supabase.auth.signOut();
-        }
-        setIsCheckingAuth(false);
-        return;
-      }
+  //     if (error) {
+  //       if (error.message.includes('refresh_token') || error.message.includes('Refresh Token')) {
+  //         await supabase.auth.signOut();
+  //       }
+  //       setIsCheckingAuth(false);
+  //       return;
+  //     }
 
-      if (session) {
-        router.replace('/(tabs)/');
-        return;
-      }
+  //     if (session) {
+  //       router.replace('/(tabs)/');
+  //       return;
+  //     }
 
-      setIsCheckingAuth(false);
-    } catch {
-      setIsCheckingAuth(false);
-    }
-  }
+  //     setIsCheckingAuth(false);
+  //   } catch {
+  //     setIsCheckingAuth(false);
+  //   }
+  // }
 
   function handleGetStarted() {
-    router.push('/subscription');
+    // TEMP DISABLED FOR CRASH TEST — router.push disabled to prevent navigation crash
+    // router.push('/subscription');
+    console.log('[CRASH TEST] handleGetStarted pressed — navigation disabled');
   }
 
   const translateX = slideAnim.interpolate({
@@ -133,7 +144,8 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={s.container}>
       <StatusBar style="dark" />
-      <FloatingParticles />
+      {/* TEMP DISABLED FOR CRASH TEST — FloatingParticles disabled */}
+      {/* <FloatingParticles /> */}
 
       <Animated.View
         style={{
@@ -189,14 +201,15 @@ export default function OnboardingScreen() {
           <View style={{ gap: 16, width: '100%' }}>
             <Text style={s.title}>{'Save instantly.\nSave 85% of your time & cost.'}</Text>
             <Text style={s.subtitle}>Grow faster</Text>
-            <TimeChart />
+            {/* TEMP DISABLED FOR CRASH TEST — TimeChart disabled */}
+            {/* <TimeChart /> */}
           </View>
         )}
 
         {step === 1 && (
           <>
-            {/* Confetti cannons */}
-            <View style={s.confettiWrapper}>
+            {/* TEMP DISABLED FOR CRASH TEST — ConfettiCannon disabled */}
+            {/* <View style={s.confettiWrapper}>
               <ConfettiCannon
                 count={40}
                 origin={{ x: WINDOW_WIDTH * 0.25, y: 0 }}
@@ -215,7 +228,7 @@ export default function OnboardingScreen() {
                 explosionSpeed={400}
                 colors={CONFETTI_COLORS}
               />
-            </View>
+            </View> */}
 
 
             {/* Hero image */}
